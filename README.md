@@ -226,5 +226,81 @@ Rodar os testes:
 ```
 dotnet test
 ```
+## Scripts para criação do Web App Service e SQL Server na Azure
+
+//Criando o resource group
+az group create \
+  --name "rg-fleetzone" \
+  --location "eastus2"
+
+//Criando Servidor SQL
+az sql server create \
+  --name "server-fleetzone-sprint3" \
+  --resource-group "rg-fleetzone" \
+  --location "eastus2" \
+  --admin-user "sqladmin" \
+  --admin-password "AzureDb123"
+
+//Criando o banco de dados Azure SQL
+az sql db create \
+  --resource-group "rg-fleetzone" \
+  --server "server-fleetzone-sprint3" \
+  --name "db-fleetzone" \
+  --service-objective S0
+
+//Permitindo o WebApp acessar o banco
+az sql server firewall-rule create \
+  --resource-group "rg-fleetzone" \
+  --server "server-fleetzone-sprint3" \
+  --name AllowAzureIps \
+  --start-ip-address 0.0.0.0 \
+  --end-ip-address 0.0.0.0
+
+//Criando o App Service Plan
+az appservice plan create \
+  --name "plan-fleetzone" \
+  --resource-group "rg-fleetzone" \
+  --sku F1
+
+//Criando o Web App de fato com Dotnet
+az webapp create \
+  --resource-group "rg-fleetzone" \
+  --plan "plan-fleetzone" \
+  --name "app-fleetzone" \
+  --runtime "dotnet:8"
+
+//Conection String
+CONNECTION_STRING="Server=tcp:server-fleetzone-sprint3.database.windows.net,1433;Initial Catalog=db-fleetzone;Persist Security Info=False;User ID=sqladmin;Password=AzureDb123;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+
+//Inserindo a Conection String
+az webapp config connection-string set \
+  --resource-group "rg-fleetzone" \
+  --name "app-fleetzone" \
+  --settings DefaultConnection="$CONNECTION_STRING" \
+  --connection-string-type SQLAzure
+
+//Aplicando as configs
+az webapp deployment source config \
+    --name app-fleetzone \
+    --resource-group rg-fleetzone \
+    --repo-url https://$app-fleetzone@app-fleetzone.scm.azurewebsites.net/app-fleetzone.git \
+    --branch main \
+    --manual-integration
+
+//Criando as tabelas
+dotnet ef database update --context ApplicationDbContext
+
+
+//Fazer o deploy de fato
+git remote add azure https://$app-fleetzone@app-fleetzone.scm.azurewebsites.net/app-fleetzone.git
+
+//Vendo o user e senha
+az webapp deployment list-publishing-profiles \
+  --resource-group "rg-fleetzone" \
+  --name "app-fleetzone" \
+  --output table
+
+//Fazendo o Push
+git push azure main
 
 
